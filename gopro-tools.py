@@ -7,6 +7,7 @@ import subprocess
 import sys
 from collections import defaultdict, namedtuple
 from pathlib import PurePath
+from pathlib import Path
 
 
 class Converter:
