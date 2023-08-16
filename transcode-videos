@@ -178,9 +178,14 @@ transcode_mp4() {
         input_file="$file"
         output_file="${dest}/${relative_path%.*}.mov"
 
-        echo "Processing file: $input_file"
-        mkdir -p "${dest}/${dest_subdir}"
-        ffmpeg -i "$input_file" -c:v copy -c:a pcm_s16le "$output_file"
+        # Check if destination file already exists
+        if [ ! -f "$output_file" ]; then
+            echo "Processing file: $input_file"
+            mkdir -p "${dest}/${dest_subdir}"
+            ffmpeg -i "$input_file" -c:v copy -c:a pcm_s16le "$output_file"
+        else
+            echo "File $output_file already exists. Skipping."
+        fi
     done
 
     # Recursively call the function for subdirectories
