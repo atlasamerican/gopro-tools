@@ -21,14 +21,17 @@ ffmpeg_process() {
     local input_file="$1"
     local destination="$2"
     local preset="$3"  # Add the preset parameter
-    local output_file="${destination}${input_file%.*}.mov"
+    local output_file="${destination}/${input_file%.*}.mov"
+    
+    # Check if the output file already exists
+    if [[ -f "$output_file" ]]; then
+        echo "$output_file already exists. Skipping..."
+        return
+    fi
     
     div=65
     
     # Your ffmpeg command here with the preset substitution
-    # the filter_complex was developed from the efforts of Paul Bourke http://paulbourke.net/panorama/gopromax2sphere/ & 
-    # Dereck Wonnacott https://github.com/dawonn/gopro-max-video-tools
-    
     ffmpeg -loglevel verbose -i "$input_file" -y -filter_complex "
     
     [0:0]crop=128:1344:x=624:y=0,format=yuvj420p,
