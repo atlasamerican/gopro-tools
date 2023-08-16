@@ -26,6 +26,9 @@ ffmpeg_process() {
     div=65
     
     # Your ffmpeg command here with the preset substitution
+    # the filter_complex was developed from the efforts of Paul Bourke http://paulbourke.net/panorama/gopromax2sphere/ & 
+    # Dereck Wonnacott https://github.com/dawonn/gopro-max-video-tools
+    
     ffmpeg -loglevel verbose -i "$input_file" -y -filter_complex "
     
     [0:0]crop=128:1344:x=624:y=0,format=yuvj420p,
