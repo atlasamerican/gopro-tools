@@ -94,7 +94,7 @@ ffmpeg_process() {
     [topComplete]crop=in_w:in_h-1:0:0[topCropped],
     [bottomCropped][topCropped]vstack[complete], 
     [complete]v360=eac:e:interp=cubic[v]" \
-    -map "[v]" -map "0:a:0" -c:v libx264 -preset "$preset" -crf 23 -pix_fmt yuv420p -c:a aac -strict -2 -f mov "$output_file"
+    -map "[v]" -map "0:a:0" -c:v libx264 -preset "$preset" -crf 23 -pix_fmt yuv420p -c:a pcm_s16le -strict -2 -f mov "$output_file"
 }
 
 exif_process() {
