@@ -21,70 +21,104 @@ ffmpeg_process() {
     local input_file="$1"
     local destination="$2"
     local preset="$3"  # Add the preset parameter
-    local output_file="${destination}/${input_file%.*}.mov"
     
+    # Extracting modification time of the file in 'yyyy-mm-dd-hh-ss' format
+    modified_date=$(stat -c '%y' "$input_file" | awk -F'[- :]' '{print $1"-"$2"-"$3"-"$4"-"$5"-"$6}')
+
+    # Constructing the output filename based on modified date
+    local output_file="${destination}/${modified_date}.mov"
+
     # Check if the output file already exists
     if [[ -f "$output_file" ]]; then
         echo "$output_file already exists. Skipping..."
         return
     fi
+
+##############################    
+    # Use ffprobe to get stream information, looking only for video streams
+    stream_info=$(ffprobe -v error -select_streams v -show_entries stream=index -of csv=p=0 "$input_file")
+
+    # Initialize variables to store stream indices
+    local first_stream=""
+    local second_stream=""
+
+    # Loop through each line in stream_info to find the indices of the video streams
+    while IFS= read -r line; do
+        line=${line%,}  # Remove any trailing commas
+        if [ -z "$first_stream" ]; then
+            first_stream="$line"
+        elif [ -z "$second_stream" ]; then
+            second_stream="$line"
+        else
+            break
+        fi
+    done <<< "$stream_info"
+
+    # Print the indices for debugging
+    echo "First video stream: $first_stream"
+    echo "Second video stream: $second_stream"
+
+    # Return the indices
+    echo "$first_stream-$second_stream"
+
+################################################    
     
     div=65
-    
+            
     # Your ffmpeg command here with the preset substitution
     ffmpeg -loglevel verbose -i "$input_file" -y -filter_complex "
     
-    [0:0]crop=128:1344:x=624:y=0,format=yuvj420p,
+    [0:$first_stream]crop=128:1344:x=624:y=0,format=yuvj420p,
     geq=
     lum='if(between(X, 0, 64), (p((X+64),Y)*(((X+1))/"$div"))+(p(X,Y)*(("$div"-((X+1)))/"$div")), p(X,Y))':
     cb='if(between(X, 0, 64), (p((X+64),Y)*(((X+1))/"$div"))+(p(X,Y)*(("$div"-((X+1)))/"$div")), p(X,Y))':
     cr='if(between(X, 0, 64), (p((X+64),Y)*(((X+1))/"$div"))+(p(X,Y)*(("$div"-((X+1)))/"$div")), p(X,Y))':
     a='if(between(X, 0, 64), (p((X+64),Y)*(((X+1))/"$div"))+(p(X,Y)*(("$div"-((X+1)))/"$div")), p(X,Y))':
     interpolation=b,crop=64:1344:x=0:y=0,format=yuvj420p,scale=96:1344[crop],
-    [0:0]crop=624:1344:x=0:y=0,format=yuvj420p[left], 
-    [0:0]crop=624:1344:x=752:y=0,format=yuvj420p[right], 
+    [0:$first_stream]crop=624:1344:x=0:y=0,format=yuvj420p[left], 
+    [0:$first_stream]crop=624:1344:x=752:y=0,format=yuvj420p[right], 
     [left][crop]hstack[leftAll], 
     [leftAll][right]hstack[leftDone],
 
-    [0:0]crop=1344:1344:1376:0[middle],
+    [0:$first_stream]crop=1344:1344:1376:0[middle],
 
-    [0:0]crop=128:1344:x=3344:y=0,format=yuvj420p,
+    [0:$first_stream]crop=128:1344:x=3344:y=0,format=yuvj420p,
     geq=
     lum='if(between(X, 0, 64), (p((X+64),Y)*(((X+1))/"$div"))+(p(X,Y)*(("$div"-((X+1)))/"$div")), p(X,Y))':
     cb='if(between(X, 0, 64), (p((X+64),Y)*(((X+1))/"$div"))+(p(X,Y)*(("$div"-((X+1)))/"$div")), p(X,Y))':
     cr='if(between(X, 0, 64), (p((X+64),Y)*(((X+1))/"$div"))+(p(X,Y)*(("$div"-((X+1)))/"$div")), p(X,Y))':
     a='if(between(X, 0, 64), (p((X+64),Y)*(((X+1))/"$div"))+(p(X,Y)*(("$div"-((X+1)))/"$div")), p(X,Y))':
     interpolation=b,crop=64:1344:x=0:y=0,format=yuvj420p,scale=96:1344[cropRightBottom],
-    [0:0]crop=624:1344:x=2720:y=0,format=yuvj420p[leftRightBottom], 
-    [0:0]crop=624:1344:x=3472:y=0,format=yuvj420p[rightRightBottom], 
+    [0:$first_stream]crop=624:1344:x=2720:y=0,format=yuvj420p[leftRightBottom], 
+    [0:$first_stream]crop=624:1344:x=3472:y=0,format=yuvj420p[rightRightBottom], 
     [leftRightBottom][cropRightBottom]hstack[rightAll], 
     [rightAll][rightRightBottom]hstack[rightBottomDone],
     [leftDone][middle]hstack[leftMiddle],
     [leftMiddle][rightBottomDone]hstack[bottomComplete],
 
-    [0:4]crop=128:1344:x=624:y=0,format=yuvj420p,
+    [0:$second_stream]crop=128:1344:x=624:y=0,format=yuvj420p,
     geq=
     lum='if(between(X, 0, 64), (p((X+64),Y)*(((X+1))/"$div"))+(p(X,Y)*(("$div"-((X+1)))/"$div")), p(X,Y))':
     cb='if(between(X, 0, 64), (p((X+64),Y)*(((X+1))/"$div"))+(p(X,Y)*(("$div"-((X+1)))/"$div")), p(X,Y))':
     cr='if(between(X, 0, 64), (p((X+64),Y)*(((X+1))/"$div"))+(p(X,Y)*(("$div"-((X+1)))/"$div")), p(X,Y))':
     a='if(between(X, 0, 64), (p((X+64),Y)*(((X+1))/"$div"))+(p(X,Y)*(("$div"-((X+1)))/"$div")), p(X,Y))':
     interpolation=n,crop=64:1344:x=0:y=0,format=yuvj420p,scale=96:1344[leftTopCrop],
-    [0:4]crop=624:1344:x=0:y=0,format=yuvj420p[firstLeftTop], 
-    [0:4]crop=624:1344:x=752:y=0,format=yuvj420p[firstRightTop], 
+    [0:$second_stream]crop=624:1344:x=0:y=0,format=yuvj420p[firstLeftTop], 
+    [0:$second_stream]crop=624:1344:x=752:y=0,format=yuvj420p[firstRightTop], 
     [firstLeftTop][leftTopCrop]hstack[topLeftHalf], 
     [topLeftHalf][firstRightTop]hstack[topLeftDone],
 
-    [0:4]crop=1344:1344:1376:0[TopMiddle],
+    [0:$second_stream]crop=1344:1344:1376:0[TopMiddle],
 
-    [0:4]crop=128:1344:x=3344:y=0,format=yuvj420p,
+    [0:$second_stream]crop=128:1344:x=3344:y=0,format=yuvj420p,
     geq=
     lum='if(between(X, 0, 64), (p((X+64),Y)*(((X+1))/"$div"))+(p(X,Y)*(("$div"-((X+1)))/"$div")), p(X,Y))':
     cb='if(between(X, 0, 64), (p((X+64),Y)*(((X+1))/"$div"))+(p(X,Y)*(("$div"-((X+1)))/"$div")), p(X,Y))':
     cr='if(between(X, 0, 64), (p((X+64),Y)*(((X+1))/"$div"))+(p(X,Y)*(("$div"-((X+1)))/"$div")), p(X,Y))':
     a='if(between(X, 0, 64), (p((X+64),Y)*(((X+1))/"$div"))+(p(X,Y)*(("$div"-((X+1)))/"$div")), p(X,Y))':
     interpolation=n,crop=64:1344:x=0:y=0,format=yuvj420p,scale=96:1344[TopcropRightBottom],
-    [0:4]crop=624:1344:x=2720:y=0,format=yuvj420p[TopleftRightBottom], 
-    [0:4]crop=624:1344:x=3472:y=0,format=yuvj420p[ToprightRightBottom], 
+    [0:$second_stream]crop=624:1344:x=2720:y=0,format=yuvj420p[TopleftRightBottom], 
+    [0:$second_stream]crop=624:1344:x=3472:y=0,format=yuvj420p[ToprightRightBottom], 
     [TopleftRightBottom][TopcropRightBottom]hstack[ToprightAll], 
     [ToprightAll][ToprightRightBottom]hstack[ToprightBottomDone],
     [topLeftDone][TopMiddle]hstack[TopleftMiddle],
@@ -166,19 +200,23 @@ transcode_mp4() {
     local relative_path
     local dest_subdir
     local output_file
+    local formatted_time
 
     # Ensure the destination directory exists
     mkdir -p "$dest"
 
-    # Transcoding individual .mp4 or .ts files
     shopt -s nullglob
     for file in "${dir}"/*.[Mm][Pp]4 "${dir}"/*.[Tt][Ss]; do
-        relative_path="${file#$dir/}"  # get the path relative to dir
+        relative_path="${file#$dir/}"
         dest_subdir="$(dirname "$relative_path")"
         input_file="$file"
-        output_file="${dest}/${relative_path%.*}.mov"
 
-        # Check if destination file already exists
+        # Get the modification time and convert it to the desired format
+        mod_time=$(stat -c '%Y' "$input_file" 2>/dev/null || stat -f '%m' "$input_file")  # Linux and macOS
+        formatted_time=$(date -d "@$mod_time" +"%Y-%m-%d-%H-%M-%S" 2>/dev/null || date -r "$mod_time" +"%Y-%m-%d-%H-%M-%S")
+        
+        output_file="${dest}/${formatted_time}.mov"
+
         if [ ! -f "$output_file" ]; then
             echo "Processing file: $input_file"
             mkdir -p "${dest}/${dest_subdir}"
@@ -188,13 +226,15 @@ transcode_mp4() {
         fi
     done
 
-    # Recursively call the function for subdirectories
     for subdir in "${dir}"/*; do
         if [ -d "$subdir" ]; then
-            transcode_mp4 "$subdir" "${dest}/${subdir#$dir/}"  # Recursive call
+            transcode_mp4 "$subdir" "${dest}/${subdir#$dir/}"
         fi
     done
 }
+
+
+
 
 
 
