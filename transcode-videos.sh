@@ -78,7 +78,7 @@ prompt_user() {
     #prompt the user if they would like to keep the original filenames or if they want to change to a date / time format based on GPS data.
     echo "Would you like to keep the original file names or change them to a new time-based format?"
     echo "1. Keep original names"
-    echo "2. Change to time-based format"
+    echo "2. Change to time-based format. This will create a filename using the yyyy-mm-dd-hh-ss_originalname.mov as the file name. The date and time is pulled from the GPS data in the file if it is available. This allows for sorting of files by name to get the sequence of files in the order they were captured. This is useful since GoPro files get split into multiple segments and some video editors can make it difficult to put the sequence back into the original order."
     read -r name_choice
     case $name_choice in
         1)
@@ -134,10 +134,8 @@ process_360() {
         echo "${#files[@]} .360 files found in $src."
         for file in *.360; do
             echo "Processing: $file"
-            if [[ $action -eq 1 || $action -eq 3 ]]; then
-                cp "$file" "$dest"
-            fi
-            if [[ $action -eq 2 || $action -eq 3 ]]; then
+
+            if [[ $use_time_format == true ]]; then
                 media_create_date=$(exiftool -s -s -s -MediaCreateDate "$file")
                 if [ -n "$media_create_date" ]; then
                     formatted_date=$(echo "$media_create_date" | awk -F'[: ]' '{print $1"y-"$2"m-"$3"d-"$4"h-"$5"m-"$6"s"}')
@@ -150,20 +148,28 @@ process_360() {
                         formatted_date=""
                     fi
                 fi
-                original_filename_noext="${file%.*}"
+            else
+                formatted_date=""
+            fi
 
-                # If formatted_date is empty, use the original filename; otherwise, prepend it
-                if [ -z "$formatted_date" ]; then
-                    output_file="${original_filename_noext}.mov"
-                else
-                    output_file="${formatted_date}_${original_filename_noext}.mov"
-                fi
-                
+            original_filename_noext="${file%.*}"
+
+            if [ -z "$formatted_date" ]; then
+                output_file="${original_filename_noext}.mov"
+            else
+                output_file="${formatted_date}_${original_filename_noext}.mov"
+            fi
+
+            if [[ $action -eq 1 || $action -eq 3 ]]; then
+                cp "$file" "${dest}/${output_file}"
+            fi
+
+            if [[ $action -eq 2 || $action -eq 3 ]]; then
                 echo "Filename should be " $output_file
-                
                 ffmpeg_process360 "$file" "$dest" "$preset" "$output_file"
                 exif_process "${dest}/${output_file}"
             fi
+            
             ((total_files_processed++))
         done
     fi
