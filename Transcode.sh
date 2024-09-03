@@ -1,3 +1,38 @@
+#!/bin/bash
+
+# **************************************************
+# Title: Davinci Resolve On Linux Media Prepper
+# **************************************************
+
+# Introduction:
+# I have been working on a script to transcode all of my GoPro MP4 files, TS files 
+# (from Rearview Camera in vehicle), and of course, GoPro 360 files into .mov files 
+# so I can use them in Linux with Davinci Resolve. This script, when run in the top 
+# directory, will search all subdirectories for any files that match the criteria 
+# and then transcode them into a .mov file. For MP4 files, it isn't actually transcoding 
+# the content; it is simply changing the container from .MP4 to .mov so that Davinci Resolve 
+# will open them. For the 360 files, it gives an option to transcode and remap, which 
+# will make the resulting .mov file usable and flat, with everything mapped to the right location. 
+# All of the files are put into a new directory with "- Processed" added to the end, and the 
+# original files are left untouched.
+#
+# If you're interested, you can take a look here for the script:
+#
+# https://github.com/atlasamerican/gopro-tools/blob/bash-script/transcode-videos
+#
+# Now... a couple of caveats... I do not take credit for the ffmpeg filter_complex. 
+# I only made a small tweak to allow for encoding via h264, resulting in much more 
+# reasonable file sizes. The person responsible for the hard work, you can find their code here:
+#
+# https://github.com/dawonn/gopro-max-video-tools
+#
+# The second and most significant caveat... I am not a coder. I used ChatGPT to help me create 
+# this script. Quite a bit of trial and error. If anyone that is a real coder wants to take it 
+# from here and make improvements, have at it. I am already at my limits, and I am sure there 
+# are a lot of ways this could be made better.
+#
+# **************************************************
+
 # Function to generate processed file name
 processed_name() {
     local input_file="$1"
@@ -6,9 +41,9 @@ processed_name() {
 
 use_time_format=false
 overwrite_files=false
-hwaccel=""
-encoder=""
-num_cores=""
+hardware_acceleration=""
+video_encoder=""
+cpu_cores=""
 copy_non_media_files=false
 custom_destination=false
 custom_input=false
@@ -27,7 +62,7 @@ parent_dir="$(dirname "$PWD")"
 current_dir_name="${PWD##*/}"
 
 # Set the default dest to be the parent directory with the current folder name and " - Processed" added to the end
-dest="${parent_dir}/${current_dir_name} - Processed"
+destination="${parent_dir}/${current_dir_name} - Processed"
 
 input_folder=""
 
@@ -133,18 +168,18 @@ determine_destination() {
     if [[ "$custom_destination" == true ]]; then
         echo "Please enter the destination folder path:"
         read -r custom_dest
-        dest="$custom_dest"
+        destination="$custom_dest"
     else
-        dest="${input_folder}/Processed"
+        destination="${input_folder}/Processed"
     fi
-    mkdir -p "$dest"
+    mkdir -p "$destination"
 }
 
 prompt_user() {
     determine_input_folder
     
     echo ""
-    echo "Current output directory location: $dest"
+    echo "Current output directory location: $destination"
     echo "Would you like to specify a different destination folder?"
     echo "  1. Yes"
     echo "  2. No"
@@ -157,7 +192,7 @@ prompt_user() {
             determine_destination
             ;;
         2)
-            # Default to the already set dest
+            # Default to the already set destination
             ;;
         *)
             echo "Invalid choice. Defaulting to the default output directory."
@@ -295,56 +330,56 @@ select_hardware_acceleration() {
     case $hw_choice in
         1)
             if echo "$available_hwaccels" | grep -q "cuda"; then
-                hwaccel="cuda"
-                encoder="h264_nvenc"
+                hardware_acceleration="cuda"
+                video_encoder="h264_nvenc"
                 echo "Using NVIDIA CUDA for hardware acceleration."
             else
                 echo "NVIDIA/CUDA not detected. It might fail."
-                encoder="h264_nvenc"
+                video_encoder="h264_nvenc"
             fi
             ;;
         2)
             if echo "$available_hwaccels" | grep -q "amf"; then
-                hwaccel="amf"
-                encoder="h264_amf"
+                hardware_acceleration="amf"
+                video_encoder="h264_amf"
                 echo "Using AMD AMF for hardware acceleration."
             elif echo "$available_hwaccels" | grep -q "vaapi"; then
-                hwaccel="vaapi"
-                encoder="h264_vaapi"
+                hardware_acceleration="vaapi"
+                video_encoder="h264_vaapi"
                 echo "Using AMD VAAPI for hardware acceleration."
             else
                 echo "AMD/AMF not detected. It might fail."
-                encoder="h264_amf"
+                video_encoder="h264_amf"
             fi
             ;;
         3)
             if echo "$available_hwaccels" | grep -q "vaapi"; then
-                hwaccel="vaapi"
-                encoder="h264_vaapi"
+                hardware_acceleration="vaapi"
+                video_encoder="h264_vaapi"
                 echo "Using Intel VAAPI for hardware acceleration."
             else
                 echo "Intel/VAAPI not detected. It might fail."
-                encoder="h264_vaapi"
+                video_encoder="h264_vaapi"
             fi
             ;;
         4)
-            hwaccel=""
-            encoder="libx264"
+            hardware_acceleration=""
+            video_encoder="libx264"
             echo "Using CPU cores for processing."
             echo "Please enter the number of CPU cores to use for processing (default: half of available cores):"
-            read -r num_cores
-            if [ -z "$num_cores" ]; then
-                num_cores=$(( $(nproc) / 2 ))
-                echo "Defaulting to $num_cores cores."
+            read -r cpu_cores
+            if [ -z "$cpu_cores" ]; then
+                cpu_cores=$(( $(nproc) / 2 ))
+                echo "Defaulting to $cpu_cores cores."
             fi
             ;;
         *)
             echo "Invalid choice. Defaulting to CPU processing."
-            hwaccel=""
-            encoder="libx264"
+            hardware_acceleration=""
+            video_encoder="libx264"
             echo "Using CPU cores for processing."
-            num_cores=$(( $(nproc) / 2 ))
-            echo "Defaulting to $num_cores cores."
+            cpu_cores=$(( $(nproc) / 2 ))
+            echo "Defaulting to $cpu_cores cores."
             ;;
     esac
     echo ""
@@ -353,7 +388,7 @@ select_hardware_acceleration() {
 fallback_to_cpu() {
     echo ""
     echo "***************************************************"
-    echo "The selected hardware acceleration method ($hwaccel) is not recognized or failed."
+    echo "The selected hardware acceleration method ($hardware_acceleration) is not recognized or failed."
     echo "Possible reasons:"
     echo "  - Your system does not support the selected hardware acceleration."
     echo "  - The required drivers or libraries are not installed."
@@ -368,11 +403,11 @@ fallback_to_cpu() {
 
     case $fallback_choice in
         1)
-            hwaccel=""
-            encoder="libx264"
+            hardware_acceleration=""
+            video_encoder="libx264"
             echo "Using CPU cores for processing."
             echo "Please enter the number of CPU cores to use for processing:"
-            read -r num_cores
+            read -r cpu_cores
             ;;
         2)
             echo "Exiting the script."
@@ -518,8 +553,8 @@ ffmpeg_process360() {
     
     echo "Filename will be $output_file"
     
-    if [ -n "$hwaccel" ]; then
-        if ! ffmpeg -loglevel verbose -y -hwaccel $hwaccel -i "$input_file" -filter_complex "
+    if [ -n "$hardware_acceleration" ]; then
+        if ! ffmpeg -loglevel verbose -y -hwaccel $hardware_acceleration -i "$input_file" -filter_complex "
         [0:$first_stream]crop=128:1344:x=624:y=0,format=yuvj420p,
         geq=
         lum='if(between(X, 0, 64), (p((X+64),Y)*(((X+1))/"$div"))+(p(X,Y)*(("$div"-((X+1)))/"$div")), p(X,Y))':
@@ -580,7 +615,7 @@ ffmpeg_process360() {
         [topComplete]crop=in_w:in_h-1:0:0[topCropped],
         [bottomCropped][topCropped]vstack[complete], 
         [complete]v360=eac:e:interp=cubic[v]" \
-        -map "[v]" -map "0:a:0" -c:v $encoder -preset "$preset" -crf 23 -pix_fmt yuv420p -c:a pcm_s16le -strict -2 -f mov "${destination}/$output_file"; then
+        -map "[v]" -map "0:a:0" -c:v $video_encoder -preset "$preset" -crf 23 -pix_fmt yuv420p -c:a pcm_s16le -strict -2 -f mov "${destination}/$output_file"; then
             return 1
         fi
     else
@@ -707,7 +742,7 @@ transcode_mp4() {
 
             formatted_time="${DATE_PARTS[0]}y-${DATE_PARTS[1]}m-${DATE_PARTS[2]}d-${DATE_PARTS[3]}h-${DATE_PARTS[4]}m-${DATE_PARTS[5]}s_${original_file_name}.mov"
 
-            output_file="${dest}/${formatted_time}"
+                        output_file="${dest}/${formatted_time}"
         fi
 
         if [[ -f "$output_file" && "$overwrite_files" == false ]]; then
@@ -718,14 +753,14 @@ transcode_mp4() {
         current_file="$input_file"
         current_file_size=$(du -h "$input_file" | cut -f1)
 
-        if [ -n "$hwaccel" ]; then
-            if ! ffmpeg -loglevel verbose -y -hwaccel $hwaccel -i "$input_file" -c:v $encoder -c:a pcm_s16le -strict experimental "$output_file"; then
+        if [ -n "$hardware_acceleration" ]; then
+            if ! ffmpeg -loglevel verbose -y -hwaccel $hardware_acceleration -i "$input_file" -c:v $video_encoder -c:a pcm_s16le -strict experimental "$output_file"; then
                 fallback_to_cpu
-                ffmpeg -loglevel verbose -y -i "$input_file" -c:v libx264 -c:a pcm_s16le -threads "$num_cores" -strict experimental "$output_file"
+                ffmpeg -loglevel verbose -y -i "$input_file" -c:v libx264 -c:a pcm_s16le -threads "$cpu_cores" -strict experimental "$output_file"
             fi
         else
-            if [ -n "$num_cores" ]; then
-                ffmpeg -loglevel verbose -y -i "$input_file" -c:v copy -c:a pcm_s16le -threads "$num_cores" -strict experimental "$output_file"
+            if [ -n "$cpu_cores" ]; then
+                ffmpeg -loglevel verbose -y -i "$input_file" -c:v copy -c:a pcm_s16le -threads "$cpu_cores" -strict experimental "$output_file"
             else
                 ffmpeg -loglevel verbose -y -i "$input_file" -c:v copy -c:a pcm_s16le -strict experimental "$output_file"
             fi
@@ -780,11 +815,11 @@ select_hardware_acceleration
 prompt_user
 
 # Run the processes sequentially with the correct destination directory
-process_360_recursive "$input_folder" "$dest"
-transcode_mp4_recursive "$input_folder" "$dest"
+process_360_recursive "$input_folder" "$destination"
+transcode_mp4_recursive "$input_folder" "$destination"
 
 if [[ "$copy_non_media_files" == true ]]; then
-    copy_non_media_files_recursive "$input_folder" "$dest"  # Copy non-media files if the option was selected
+    copy_non_media_files_recursive "$input_folder" "$destination"  # Copy non-media files if the option was selected
 fi
 
 # Clean up the temporary directory
