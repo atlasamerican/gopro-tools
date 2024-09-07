@@ -78,8 +78,11 @@ cleanup() {
 
 determine_input_folder() {
     current_input_folder="$PWD"
+    echo ""
     echo "Current working folder: $current_input_folder"
+    echo ""
     echo "Would you like to use this folder or specify another one?"
+    echo ""
     echo "  1. Use this folder"
     echo "  2. Specify another folder"
     echo ""
@@ -109,8 +112,10 @@ search_and_confirm_files() {
     files_found=($(find "$input_folder" -type f \( -name "*.mp4" -o -name "*.MP4" -o -name "*.ts" -o -name "*.TS" -o -name "*.mkv" -o -name "*.MKV" -o -name "*.avi" -o -name "*.AVI" -o -name "*.mov" -o -name "*.MOV" -o -name "*.flv" -o -name "*.FLV" -o -name "*.wmv" -o -name "*.WMV" -o -name "*.360" \)))
     
     if [ ${#files_found[@]} -eq 0 ]; then
+        echo ""
         echo "No files found in the specified folder."
         echo "Would you like to specify another folder or quit?"
+        echo ""
         echo "  1. Specify another folder"
         echo "  2. Quit"
         echo ""
@@ -140,6 +145,7 @@ search_and_confirm_files() {
         
         echo ""
         echo "Would you like to continue with this folder, specify another folder, or quit?"
+        echo ""
         echo "  1. Continue"
         echo "  2. Specify another folder"
         echo "  3. Quit"
@@ -181,6 +187,7 @@ prompt_user() {
     echo ""
     echo "Current output directory location: $destination"
     echo "Would you like to specify a different destination folder?"
+    echo ""
     echo "  1. Yes"
     echo "  2. No"
     echo ""
@@ -200,27 +207,34 @@ prompt_user() {
     esac
     
     echo ""
-    echo "This routine will process a directory and all sub-directories,"
-    echo "looking for MP4 files, TS files, and GoPro 360 files."
-    echo "The MP4 files and TS files will be transcoded into a .mov"
-    echo "file format using a lossy process. This is both fast and efficient."
+    echo "This routine will process a directory and all sub-directories, looking for Media files including GoPro 360 files to process."
     echo ""
-    echo "For the 360 files, you have the following options:"
-    echo "  1. Copy only"
-    echo "     (will copy the .360 file into the Processed directory,"
-    echo "      this is fastest but least compatible with Linux video editors)"
-    echo "  2. Remap & Transcode only"
-    echo "     (will transcode the 360 file into a .mov and map the file"
-    echo "      so it is a flat image, this can be opened and used in Linux video editors)"
-    echo "  3. Copy and Transcode"
-    echo "     (performs both of the above procedures so both files appear in the folder structure)"
+    echo "There are two options that you may choose from:"
     echo ""
-    echo "Please select one of the above choices:"
+    echo "Option 1: All compatible Media files will be transcoded into a .mov file format using the FFMPEG copy function to change the container"
+    echo "          type to .mov and the audio codec with to pcm_s16le format without recompressing the file. This is both fast and efficient but"
+    echo "          does not help with 360 files in video editors." 
+    echo ""
+    echo "Option 2: Will change all compatible Media formats as above but for 360 files it will remap them into an Equirectangular format that"
+    echo "          can be used inside of video editors. You will need some sort of plugin (Davinici Resolve KartaVR has kvrReframe360Ultra"  
+    echo "          plugin to display the video correctly and allow for reframing of the video."
+    echo ""
+    echo "          Note: This process can be very time consuming as it most likely will need to be performed on the CPU rather than GPU due to the"
+    echo "          odd pixel dimensions generated from the remapping process."
+
+    # The below two lines where disabled as I don't believe this option actually does anything different than option 2. 
+    #    echo "  3. Copy and Transcode"
+    #    echo "     (performs both of the above procedures so both files appear in the folder structure)"
+
+
+    echo ""
+    echo "Please select one of the above choices by typing a 1 or a 2:"
     read -r action
 
     if [ "$action" -eq 2 ] || [ "$action" -eq 3 ]; then
         echo ""
         echo "When remapping and transcoding 360 files, you may select the following h264 presets:"
+        echo ""
         echo "  1. Ultra Fast (low quality, large file size, e.g., 1GB input -> ~800MB output)"
         echo "  2. Very Fast (medium-low quality, medium-large file size, e.g., 1GB input -> ~600MB output)"
         echo "  3. Medium (medium quality, medium file size, e.g., 1GB input -> ~400MB output)"
@@ -251,6 +265,7 @@ prompt_user() {
     
     echo ""
     echo "Would you like to keep the original file names or change them to a new time-based format?"
+    echo ""
     echo "  1. Keep original names"
     echo "  2. Change to time-based format"
     echo "     (this will create a filename using the yyyy-mm-dd-hh-ss_originalname.mov format"
@@ -274,6 +289,7 @@ prompt_user() {
     
     echo ""
     echo "Would you like to overwrite existing files in the output directory or skip them?"
+    echo ""
     echo "  1. Overwrite"
     echo "  2. Skip"
     echo ""
@@ -294,6 +310,7 @@ prompt_user() {
 
     echo ""
     echo "Would you like to copy non-media files (e.g., text files, images, etc.) to the destination folder?"
+    echo "" 
     echo "  1. Yes"
     echo "  2. No"
     echo ""
@@ -317,8 +334,12 @@ select_hardware_acceleration() {
     echo ""
     echo "***************************************************"
     echo "Please select the hardware acceleration method:"
+    echo ""
     available_hwaccels=$(ffmpeg -hide_banner -hwaccels | tail -n +2 | awk '{print tolower($0)}')
-    echo "Detected hardware acceleration options: $available_hwaccels"
+    echo "Detected hardware acceleration options:"
+    echo ""
+    echo  $available_hwaccels
+    echo ""
     echo "  1. NVIDIA/CUDA"
     echo "  2. AMD/AMF"
     echo "  3. Intel/VAAPI"
@@ -365,7 +386,9 @@ select_hardware_acceleration() {
         4)
             hardware_acceleration=""
             video_encoder="libx264"
+            echo ""
             echo "Using CPU cores for processing."
+            echo ""
             echo "Please enter the number of CPU cores to use for processing (default: half of available cores):"
             read -r cpu_cores
             if [ -z "$cpu_cores" ]; then
