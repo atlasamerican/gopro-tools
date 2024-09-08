@@ -217,7 +217,7 @@ prompt_user() {
     echo ""
     echo "Option 2: Will change all compatible Media formats as above but for 360 files it will remap them into an Equirectangular format that"
     echo "          can be used inside of video editors. You will need some sort of plugin (Davinici Resolve KartaVR has kvrReframe360Ultra"  
-    echo "          plugin to display the video correctly and allow for reframing of the video."
+    echo "          plugin to display the video correctly and allow for reframing of the video.)"
     echo ""
     echo "          Note: This process can be very time consuming as it most likely will need to be performed on the CPU rather than GPU due to the"
     echo "          odd pixel dimensions generated from the remapping process."
